@@ -1,0 +1,67 @@
+/*
+ * Copyright (c) 2025 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+#include "common/memory_map.dtsi"
+
+&cpuapp_data {
+	reg = <0x2f000000 0x39000>;
+};
+
+secondary_app_partition: &cpuapp_slot1_partition {};
+
+&spi130 {
+	 status = "reserved";
+	 interrupt-parent = <&cpuppr_clic>;
+};
+
+&exmif {
+	status = "okay";
+	zephyr,pm-device-runtime-auto;
+};
+
+&gpiote130 {
+	nonsecure-channels = <7>;
+	child-owned-channels = <7>;
+};
+
+&cpuppr_vpr {
+        status = "okay";
+};
+
+ipc1: &cpuapp_cpuppr_ipc {
+	status = "okay";
+};
+
+&cpuppr_vevif {
+	status = "okay";
+};
+
+&cpuapp_bellboard {
+	status = "okay";
+};
+
+///*
+
+&mx25uw63 {
+	status = "okay";
+	supply-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>;
+};
+
+/ {
+	zephyr,user {
+		test-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio6 {
+	status = "okay";
+	zephyr,pm-device-runtime-auto;
+};
+//*/

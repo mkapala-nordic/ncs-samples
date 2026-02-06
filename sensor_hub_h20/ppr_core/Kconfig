@@ -11,4 +11,8 @@ config APP_PROVIDE_PM_HOOKS
 	select HAS_PM
 	select HAS_POWEROFF
 
+config APP_MULTITHREADING
+	bool "Application uses multithreading"
+	default y
+
 source "Kconfig.zephyr"

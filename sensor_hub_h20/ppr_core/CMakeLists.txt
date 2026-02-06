@@ -9,7 +9,12 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(ppr_main)
-target_sources(app PRIVATE src/main.c)
+
+if(CONFIG_APP_MULTITHREADING)
+  target_sources(app PRIVATE src/main.c)
+else()
+  target_sources(app PRIVATE src/main_no_multithreading.c)
+endif()
 
 if(CONFIG_SOC_NRF54H20_CPUPPR)
   message(DEBUG "Power Mode handler for RISC V is included.")

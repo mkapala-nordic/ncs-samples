@@ -6,6 +6,9 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/drivers/flash.h>
 
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
+
 /*
  * *** User input ***
  */
@@ -33,6 +36,7 @@ static void write_ext_flash(struct k_work *work){
 	if (rc != 0) {
 		printf("Flash write failed! %d\n", rc);
 	}
+	LOG_INF("Flash written");
 }
 K_WORK_DEFINE(thread_write_flash_id, write_ext_flash);
 
@@ -59,6 +63,7 @@ static void ep_recv(const void *data, size_t len, void *priv)
 {
 	// Write IPC data from PPR core directly to external flash
 	memcpy(ipc_data, data, IPC_BUFFER_SIZE);
+	LOG_HEXDUMP_DBG(ipc_data, IPC_BUFFER_SIZE, "IPC data");
 	k_work_submit(&thread_write_flash_id);
 }
 static struct ipc_ept_cfg ep_cfg = {
@@ -88,14 +93,21 @@ int main(void)
 	}
 
 	k_sem_take(&bound_sem, K_FOREVER);
+
+	LOG_INF("IPC bound");
+
+	LOG_INF("Enabling BT");
 	bt_enable(NULL);
+	LOG_INF("BT enabled");
+
 #if START_ADVERTISING
 	ret = bt_le_adv_start(
 			BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, ADVERTISING_INTERVAL, 1600, NULL),
 			ad, ARRAY_SIZE(ad), NULL, 0);
+	LOG_INF("BT advertising started");
 #endif
-	
+
 
 	return 0;
-	
+
 }

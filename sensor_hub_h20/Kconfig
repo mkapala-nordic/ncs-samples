@@ -4,4 +4,18 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
+menu "Sensor Hub H20"
+
+config APP_BT_ADVERTISING
+	bool "Enable Bluetooth advertising"
+	default y
+
+config APP_WRITE_EXT_FLASH
+	bool "Write batched sensor data to external flash"
+	default y
+
+endmenu
+
+menu "Zephyr Kernel"
 source "Kconfig.zephyr"
+endmenu

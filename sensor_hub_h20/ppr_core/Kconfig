@@ -14,5 +14,16 @@ config APP_PROVIDE_PM_HOOKS
 config APP_MULTITHREADING
 	bool "Application uses multithreading"
 	default y
+choice
+	prompt "Application VPR PM implementation"
+	depends on APP_PROVIDE_PM_HOOKS && !APP_MULTITHREADING
+	default APP_MANUAL_VPR_PM_CUSTOM
+
+config APP_MANUAL_VPR_PM_CUSTOM
+	bool "Application uses manual VPR PM"
+
+config APP_MANUAL_VPR_PM_HACKED_PM
+	bool "Application uses hacked PM"
+endchoice
 
 source "Kconfig.zephyr"

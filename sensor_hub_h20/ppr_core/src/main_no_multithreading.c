@@ -13,9 +13,10 @@
 #define SPI_READ_INTERVAL_MS 100
 #define IPC_SEND_INTERVAL 10     // in number of SPI transactions
 
-
-#define IPC_BUFFER_SIZE SPI_BUFFER_SIZE*IPC_SEND_INTERVAL //Can not exceed CONFIG_PBUF_RX_READ_BUF_SIZE
-
+/** Represents a SPI transaction. */
+struct spi_data {
+	uint8_t data[SPI_BUFFER_SIZE];
+};
 
 /*
  * *** SPI settings ***
@@ -24,13 +25,24 @@
 #define SPIM_OP	 (SPI_OP_MODE_MASTER | SPI_MODE)
 struct spi_dt_spec spim = SPI_DT_SPEC_GET(DT_NODELABEL(dut_spi_dt), SPIM_OP, 0);
 
-static uint8_t tx_buffer[SPI_BUFFER_SIZE];
+/* Mock data for SPI loopback transfer. */
+static struct spi_data tx_data;
 static struct spi_buf tx_buf  = {
-	.buf = tx_buffer,
-	.len = SPI_BUFFER_SIZE,
+	.buf = tx_data.data,
+	.len = sizeof(tx_data.data),
 };
 static struct spi_buf_set tx_buffer_set  = {
 	.buffers = &tx_buf,
+	.count = 1,
+};
+
+/* Buffer for received data.
+ * Will be set to the specific place in ipc_data[] array.
+ */
+static struct spi_data batch_data[IPC_SEND_INTERVAL];
+static struct spi_buf rx_buf;
+static struct spi_buf_set rx_buffer_set  = {
+	.buffers = &rx_buf,
 	.count = 1,
 };
 
@@ -59,16 +71,11 @@ static struct ipc_ept_cfg ep_cfg = {
 	},
 };
 
-static uint8_t ipc_buffer[IPC_BUFFER_SIZE];
-static uint8_t idx = 0;
-
 static void ipc_send(void)
 {
 	int ret;
 	while (true) {
-		ipc_buffer[0] = idx;
-		idx = (idx + 1) % 256;
-		ret = ipc_service_send(&ep, ipc_buffer, IPC_BUFFER_SIZE);
+		ret = ipc_service_send(&ep, batch_data, sizeof(batch_data));
 		if (ret == -ENOMEM) {
 			/* No space in the buffer. Retry. */
 			continue;
@@ -111,6 +118,15 @@ static void sleep(k_timeout_t timeout)
 	wait_sleep_state_set();
 }
 
+static char next_alpha_char(void)
+{
+	static char val = 'Z';
+
+	val = (val == 'Z') ? 'A' : val + 1;
+
+	return val;
+}
+
 int main(void)
 {
 	// Wait for app core to start
@@ -134,16 +150,35 @@ int main(void)
 		k_msleep(10);
 	}
 
-	// SPI read and IPC send loop (single-threaded)
-	int spi_read_counter = 0;
+
+	int spi_xfer_cnt = 0;
+
+	/* SPI read and IPC send loop (single-threaded). */
 	while (1) {
+		/* Setup mock data for SPI loopback transfer. */
+		tx_data.data[0] = next_alpha_char();
+
+		/* Setup buffer for received data. */
+		rx_buf.buf = batch_data[spi_xfer_cnt].data;
+		rx_buf.len = sizeof(batch_data[spi_xfer_cnt].data);
+		memset(rx_buf.buf, 0, rx_buf.len);
+
+		/* Initialize SPI bus to power up the bus device. */
 		device_init(spim.bus);
-		spi_read_dt(&spim, &tx_buffer_set);
+
+		/* Perform SPI loopback transfer. */
+		spi_transceive_dt(&spim, &tx_buffer_set, &rx_buffer_set);
+
+		/* Deinitialize SPI bus to power down the bus device. */
 		device_deinit(spim.bus);
-		if (spi_read_counter % IPC_SEND_INTERVAL == IPC_SEND_INTERVAL - 1) {
+
+		/* Send IPC data if we have reached the required number of samples. */
+		if (spi_xfer_cnt == (IPC_SEND_INTERVAL - 1)) {
 			ipc_send();
+			spi_xfer_cnt = 0;
+		} else {
+			spi_xfer_cnt++;
 		}
-		spi_read_counter++;
 
 		sleep(K_MSEC(SPI_READ_INTERVAL_MS));
 	}

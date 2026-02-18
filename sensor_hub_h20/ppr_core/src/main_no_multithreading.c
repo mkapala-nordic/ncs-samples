@@ -10,7 +10,7 @@
  * *** User input ***
  */
 #define SPI_BUFFER_SIZE 35
-#define SPI_READ_INTERVAL_MS 350
+#define SPI_READ_INTERVAL_MS 100
 #define IPC_SEND_INTERVAL 10     // in number of SPI transactions
 
 
@@ -79,71 +79,36 @@ static void ipc_send(void)
 	}
 }
 
-// TIMER TO ENSURE PROPER DELAY
-static volatile bool idle_timer_expired = false;
-static void idle_timer_handler(struct k_timer *timer)
-{
-	idle_timer_expired = true;
-}
-K_TIMER_DEFINE(idle_timer, idle_timer_handler, NULL);
-
-
 #include <hal/nrf_vpr_csr.h>
 
-// from: /ncs/nrf/tests/benchmarks/multicore/common/power_off.c
-static void pm_enter_hibernate(void)
+static void hibernate_sleep_state_set(void)
 {
 	csr_write(VPRCSR_NORDIC_VPRNORDICSLEEPCTRL,
-		  VPRCSR_NORDIC_VPRNORDICSLEEPCTRL_SLEEPSTATE_HIBERNATE);
+		VPRCSR_NORDIC_VPRNORDICSLEEPCTRL_SLEEPSTATE_HIBERNATE);
 	nrf_barrier_w();
-	arch_cpu_idle();
 }
 
-// from: /ncs/nrf/tests/benchmarks/multicore/common/power_off.c
-static void pm_exit_hibernate(void)
+static void wait_sleep_state_set(void)
 {
 	csr_write(VPRCSR_NORDIC_VPRNORDICSLEEPCTRL,
-		  VPRCSR_NORDIC_VPRNORDICSLEEPCTRL_SLEEPSTATE_WAIT);
-
-	/* unlock interrupts after sleep */
-	irq_unlock(MSTATUS_IEN);
+		VPRCSR_NORDIC_VPRNORDICSLEEPCTRL_SLEEPSTATE_WAIT);
+	nrf_barrier_w();
 }
 
-// DOES NOT HANDLE DEVICES IN ANY CAPACITY, JUST VPR CORE
-static void idle_custom_pm(void)
+/** ASSUMPTION: Only this function is configuring the VPR sleep state. */
+static void sleep(k_timeout_t timeout)
 {
-	pm_enter_hibernate();
-	/* Should sleep here */
-	pm_exit_hibernate();
-}
+	static const k_timeout_t hibernate_min_residency = K_USEC(200);
 
-// REQUIRES modifications to pm.c/device_runtime.c to remove all thread-related code
-static void idle_hacked_pm(void)
-{
-	(void) arch_irq_lock();
-	_kernel.idle = z_get_next_timeout_expiry();
-	if (k_is_pre_kernel() || !pm_system_suspend(_kernel.idle)) {
-		k_cpu_idle();
+	/* Setup the sleep state based on the minimum residency time of the power state. */
+	if (timeout.ticks >= hibernate_min_residency.ticks) {
+		hibernate_sleep_state_set();
 	}
-}
 
-static void idle(void)
-{
-	if (IS_ENABLED(CONFIG_APP_MANUAL_VPR_PM_CUSTOM)) {
-		idle_custom_pm();
-	} else if (IS_ENABLED(CONFIG_APP_MANUAL_VPR_PM_HACKED_PM)) {
-		idle_hacked_pm();
-	}
-}
+	k_sleep(timeout);
 
-static void wait_in_idle_ms(uint32_t sleep_ms)
-{
-	idle_timer_expired = false;
-	k_timer_start(&idle_timer, K_MSEC(sleep_ms), K_NO_WAIT);
-
-	while(!idle_timer_expired) {
-		idle();
-	}
+	/* Set default sleep state. */
+	wait_sleep_state_set();
 }
 
 int main(void)
@@ -172,18 +137,15 @@ int main(void)
 	// SPI read and IPC send loop (single-threaded)
 	int spi_read_counter = 0;
 	while (1) {
+		device_init(spim.bus);
 		spi_read_dt(&spim, &tx_buffer_set);
+		device_deinit(spim.bus);
 		if (spi_read_counter % IPC_SEND_INTERVAL == IPC_SEND_INTERVAL - 1) {
 			ipc_send();
 		}
 		spi_read_counter++;
 
-		if ((IS_ENABLED(CONFIG_APP_MANUAL_VPR_PM_CUSTOM) ||
-		     IS_ENABLED(CONFIG_APP_MANUAL_VPR_PM_HACKED_PM))) {
-			wait_in_idle_ms(SPI_READ_INTERVAL_MS);
-		} else {
-			k_msleep(SPI_READ_INTERVAL_MS);
-		}
+		sleep(K_MSEC(SPI_READ_INTERVAL_MS));
 	}
 
 	return 0;

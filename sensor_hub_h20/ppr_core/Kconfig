@@ -7,12 +7,9 @@
 
 config APP_PROVIDE_PM_HOOKS
 	bool "Application provides PM hooks"
+	depends on MULTITHREADING
 	default y if SOC_NRF54H20_CPUPPR
 	select HAS_PM
 	select HAS_POWEROFF
-
-config APP_MULTITHREADING
-	bool "Application uses multithreading"
-	default y
 
 source "Kconfig.zephyr"

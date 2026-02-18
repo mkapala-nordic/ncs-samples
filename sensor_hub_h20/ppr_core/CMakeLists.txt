@@ -10,10 +10,10 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(ppr_main)
 
-if(CONFIG_APP_MULTITHREADING)
+if(CONFIG_MULTITHREADING)
   target_sources(app PRIVATE src/main.c)
 else()
-  target_sources(app PRIVATE src/main_no_multithreading.c)
+  target_sources(app PRIVATE src/main_singlethread.c)
 endif()
 
 if (CONFIG_APP_PROVIDE_PM_HOOKS)

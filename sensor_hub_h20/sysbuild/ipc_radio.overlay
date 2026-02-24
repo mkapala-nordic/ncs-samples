@@ -14,4 +14,8 @@
 	};
 };
 
+&uart135 {
+	status = "disabled";
+};
+
 secondary_app_partition: &cpurad_loaded_fw_slot1 {};

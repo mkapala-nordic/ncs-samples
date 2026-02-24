@@ -17,6 +17,11 @@ secondary_app_partition: &cpuapp_slot1_partition {};
 	 interrupt-parent = <&cpuppr_clic>;
 };
 
+&uart135 {
+	status = "reserved";
+	interrupt-parent = <&cpuppr_clic>;
+};
+
 &exmif {
 	status = "okay";
 	zephyr,pm-device-runtime-auto;

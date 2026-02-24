@@ -113,4 +113,5 @@ ipc1: &cpuapp_cpuppr_ipc {
 
 &uart135 {
 	/delete-property/ hw-flow-control;
+	status = "disabled";
 };
